@@ -5,26 +5,116 @@ date: "2/3/2022"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=TRUE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(here)
+ 
+# For Part 1 (PCA)
+library(ggfortify) # For PCA biplot
+library(palmerpenguins)
+library(patchwork)
+ 
+# For Part 2 (ggplot customization)
+library(readxl)
+library(gghighlight) # For useful highlighting
+library(lubridate) # For easier dates & times
+library(plotly) # Interactive graphs
+
 ```
 
-## R Markdown
+# Part 1: Principal components analysis (PCA)
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Principal components analysis is an ordination method allowing us to glean as much about our multivariate data as possible in a simplified number of dimensions.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Here, we'll use the `penguins` data within the `palmerpenguins` R package to explore variable relationships and clustering by species in a PCA biplot. For this example with PCA, we will only use the structure size measurements (bill length and depth, mass, and flipper length).
 
-```{r cars}
-summary(cars)
+```{r}
+penguin_clean <- penguins %>% 
+  drop_na()
+
+#creating a pca object type (for `prcomp` we can only give it numeric data! need to get rid of things that are characters)
+penguin_pca <- penguin_clean %>% 
+  dplyr::select(body_mass_g, ends_with("_mm")) %>% #selecting all the columns that end with "_mm"
+  scale() %>% #since things are on different scales, we need to rescale
+  prcomp() #doing the PCA
 ```
 
-## Including Plots
+```{r}
+# See the loadings (weighting for each principal component)
+penguin_pca$rotation
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+#to see the SD
+penguin_pca$sdev
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Biplotby hand
+
+```{r}
+loadings_df <- data.frame(penguin_pca$rotation) %>% 
+  mutate(axis = row.names(.)) #this adds a new row, the "." takes what ever comes out above from the pipe
+
+new_pts_df <- data.frame(penguin_pca$x)
+
+#using a ggplot to visualize
+ggplot() +
+  geom_point(data = new_pts_df, aes(x = PC1, y = PC2), color = 'blue') +
+  geom_segment(data = loadings_df, #this creates a line segment, they all start from 0,0
+               x = 0, y = 0, aes(xend = PC1, yend = PC2, group = axis),
+               arrow = arrow(length = unit(.25, 'cm'))) + #adding arrows for principal components
+  geom_text(data = loadings_df, #this is labeling the labels
+            aes(x = PC1, y = PC2, label = axis), vjust = 0, nudge_y = .01) + #the nudge y makes the text float just a little above the point
+  theme_minimal()
+```
+
+And by auto-plot
+
+```{r}
+autoplot(penguin_pca,
+         data = penguin_clean,
+         loadings = TRUE, #to show the arrows
+         colour = "species",
+         loadings.label = TRUE, #to add the labels to the arrows
+         loadings.colour = "black",
+         loadings.label.colour = "black",
+         loadings.label.vjust = -0.5) +
+  scale_color_manual(values = c("blue","purple","orange")) +
+  scale_fill_manual(values = c("blue","purple","orange")) +
+  theme_minimal()
+
+```
+
+## Screenplot by hand
+
+First by hand, then by screenplot
+
+```{r}
+sd_vec <- penguin_pca$sdev
+var_vec <- sd_vec^2 # Standard deviation is sqrt of variance!
+
+pc_names <- colnames(penguin_pca$rotation) #PC names will create names
+
+#percent explained dataframe
+pct_expl_df <- data.frame(v = var_vec, #variance vector
+                          pct_v = var_vec / sum(var_vec), #percent variance (each value divided by the sum of variance vector)
+                          pc = fct_inorder(pc_names)) %>% #puts it in order of pc_names
+  mutate(pct_lbl = paste0(round(pct_v*100,1), "%"))
+
+ggplot(pct_expl_df, aes(x = pc, y = v)) + #mapping principal components on the x, and on y we are putting the variance (putting percent variance as a label on top)
+  geom_col() +
+  geom_text(aes(label = pct_lbl), vjust = 0, nudge_y = .002) + #adding the percent variance label on top (percent of total varience explained by each Principal component), moving the labels up just a bit 
+  labs(x = 'Principal component', y = 'Variance explained')
+
+```
+
+### Using function `screeplot` to do the exact same as above
+
+- It is much harder to customize 
+
+```{r}
+# Variance explained by each PC
+screeplot(penguin_pca, type = "lines")
+screeplot(penguin_pca, type = "barplot")
+```
+
