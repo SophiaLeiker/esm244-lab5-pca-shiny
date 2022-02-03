@@ -88,6 +88,7 @@ autoplot(penguin_pca,
 ## Screenplot by hand
 
 First by hand, then by screenplot
+Note: can use summary(penguin_pca) to get a breakdown of SD, proportion of varience, cumulative proportion
 
 ```{r}
 sd_vec <- penguin_pca$sdev
@@ -107,6 +108,8 @@ ggplot(pct_expl_df, aes(x = pc, y = v)) + #mapping principal components on the x
   labs(x = 'Principal component', y = 'Variance explained')
 
 ```
+
+With these two top principal components we have a pretty good understanding of what variables should be used. (Tells us the importance of the variables and the ways these variables relate to one another). So this helps us make more informed decisions about what might be most important to include (variable-wise)
 
 ### Using function `screeplot` to do the exact same as above
 
