@@ -121,3 +121,88 @@ screeplot(penguin_pca, type = "lines")
 screeplot(penguin_pca, type = "barplot")
 ```
 
+
+***
+
+# Part 2: `ggplot` customization & reading in different file types
+
+We spent some time in ESM 206 customizing our data visualizations. Let's add some more tools, including:
+- Highlight spaghetti plots with `gghighlight`
+- An interactive graph with `plotly`
+
+Here, we'll also read in stored .txt and .xlsx, and files from a URL to build our toolkit for how to read in data.
+
+**Data:** NOAA [Foreign Fisheries Trade Data](https://www.fisheries.noaa.gov/national/sustainable-fisheries/foreign-fishery-trade-data)
+
+## Read in a .xlsx file, & do some wrangling
+
+```{r}
+fish_noaa <- read_excel(here("data", "foss_landings.xlsx")) %>% 
+  janitor::clean_names() %>% 
+  mutate(across(where(is.character), tolower)) %>% # convert all characters to lowercase, goes across columns run a test to see if they are characters and apply the function `tolower` where is.character is true
+  mutate(nmfs_name = str_sub(nmfs_name, end = -4)) %>%  # remove last 4 characters
+filter(confidentiality == "public")
+```
+
+Now, let's make and customize a graph:
+
+```{r}
+fish_plot <- ggplot(data = fish_noaa, aes(x = year, y = pounds, group = nmfs_name)) +
+  geom_line(aes(color = nmfs_name)) +
+  theme_minimal()
+ 
+# Make it interactive:
+ggplotly(fish_plot)
+ 
+# Highlight series based on condition(s): USING `highlight`
+ggplot(data = fish_noaa, aes(x = year, y = pounds, group = nmfs_name)) +
+  geom_line() +
+  gghighlight(nmfs_name == "rockfishes") + # Highlight just rockfishes
+  theme_minimal()
+
+# Highlight series based on high-catch
+ggplot(data = fish_noaa, aes(x = year, y = pounds, group = nmfs_name)) +
+  geom_line(aes(color = nmfs_name)) +
+  gghighlight(max(pounds) > 1e8) + # Highlight max catch
+  theme_minimal()
+
+```
+
+## Read in data from a URL, `lubridate()` refresher, `mutate()` as a workhorse to transform variables
+
+- See paletteer color palettes:
+- Discrete with `View(palettes_d_names)`
+- Continuous with `View(palettes_c_names)`
+
+**Data:** Monroe Water Treatment Plant Daily Electricity Use
+
+Accessed from [data.gov](https://catalog.data.gov/dataset/monroe-water-treatment-plant-energy-and-water-consumption/resource/5afc8aa7-b485-4173-bcc6-c56270efedb8)
+
+Archived here: 
+
+* https://raw.githubusercontent.com/oharac/esm244_w22_lab5/master/data/MWTP_Elec_Daily.csv
+* Can go to https://github.com/oharac/esm244_w22_lab5/blob/master/data/MWTP_Elec_Daily.csv then click the "view raw" button to get a downloadable .csv
+
+Summary: "Daily energy use (kWh), demand (kW), and volume water treated (million gallons). 2010 through current. A second electric meter and account were added at the plant in March 2013. The usage and demand data from this meter are labeled as "Energy Use 2" and "Peak 2."
+
+The URL to the CSV file is provided at the website above (or copy from below):
+
+```{r}
+monroe_wt <- read_csv("https://raw.githubusercontent.com/oharac/esm244_w22_lab5/master/data/MWTP_Elec_Daily.csv") %>%
+  janitor::clean_names()
+
+monroe_ts <- monroe_wt %>%
+  mutate(date = lubridate::mdy(date)) %>% # Convert date to a stored date class, 
+  mutate(record_month = lubridate::month(date)) %>% # Add column w/ month number (pulling month out of the date column)
+  mutate(month_name = month.abb[record_month]) %>% # Add column w/ month abbreviation (pulling )
+  mutate(month_name = fct_reorder(month_name, record_month)) # Make month name a factor & reorder based on values in record_month column
+ 
+ggplot(data = monroe_ts, aes(x = month_name, y = total_kwh)) +
+  geom_jitter(aes(color = month_name),
+          	show.legend = FALSE,
+          	alpha = 0.5,
+          	size = 0.3,
+          	width = 0.2) +
+  theme_classic()
+```
+
